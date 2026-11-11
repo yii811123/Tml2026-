@@ -33,6 +33,11 @@
     const { useState, useEffect, useMemo } = React;
 
     // ==========================================
+    // 🔥 專屬雲端即時資料庫網址 (已綁定你的 Firebase 新加坡伺服器)
+    // ==========================================
+    const FIREBASE_DB_URL = "https://tml2026-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+    // ==========================================
     // 預設園區集合點 (A~F點 + SOS)
     // ==========================================
     const LANDMARKS = [
@@ -205,7 +210,9 @@
       const [pearlAmount, setPearlAmount] = useState('10');
       const [showTaxiModal, setShowTaxiModal] = useState(false);
       const [guideSubTab, setGuideSubTab] = useState('web'); // 'web' (直接看 tmlth-guide.github.io) | 'tools' (司機卡/換算器)
+      const [cloudSyncStatus, setCloudSyncStatus] = useState('connecting'); // 'connecting' | 'live' | 'offline'
 
+      // 本地備份防斷網
       useEffect(() => {
         localStorage.setItem('tml_checkins_v2', JSON.stringify(checkins));
       }, [checkins]);
@@ -214,13 +221,73 @@
         localStorage.setItem('tml_my_profile', JSON.stringify(myProfile));
       }, [myProfile]);
 
+      // ==========================================
+      // 🌐 跨手機雲端 0 秒即時同步 (Firebase Realtime Database SSE + 輪詢雙保險)
+      // ==========================================
+      const fetchCloudCheckins = async () => {
+        try {
+          const res = await fetch(`${FIREBASE_DB_URL}/checkins.json`);
+          if (!res.ok) throw new Error('Network error');
+          const data = await res.json();
+          if (data && typeof data === 'object') {
+            const list = Object.values(data).filter(Boolean);
+            if (list.length > 0) {
+              setCheckins(list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
+            }
+            setCloudSyncStatus('live');
+          } else {
+            // 雲端尚無資料時，將初始範例資料寫入雲端
+            const seedObj = {};
+            INITIAL_CHECKINS.forEach(item => { seedObj[item.id] = item; });
+            await fetch(`${FIREBASE_DB_URL}/checkins.json`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(seedObj)
+            });
+            setCloudSyncStatus('live');
+          }
+        } catch (err) {
+          console.warn('Cloud sync fallback to local:', err);
+          setCloudSyncStatus('offline');
+        }
+      };
+
+      useEffect(() => {
+        fetchCloudCheckins();
+
+        // 1. 建立 Server-Sent Events (SSE) 即時推播連線，別人一按打卡全團 0 秒跳出
+        let evtSource = null;
+        try {
+          evtSource = new EventSource(`${FIREBASE_DB_URL}/checkins.json`);
+          evtSource.addEventListener('put', () => {
+            fetchCloudCheckins();
+          });
+          evtSource.addEventListener('patch', () => {
+            fetchCloudCheckins();
+          });
+          evtSource.onerror = () => {
+            setCloudSyncStatus('offline');
+          };
+        } catch (e) {
+          console.warn('SSE not supported, using polling');
+        }
+
+        // 2. 每 8 秒自動背景同步一次（防止手機切換視窗或網路瞬斷漏接）
+        const pollTimer = setInterval(fetchCloudCheckins, 8000);
+
+        return () => {
+          if (evtSource) evtSource.close();
+          clearInterval(pollTimer);
+        };
+      }, []);
+
       const t = (zh, en) => (lang === 'en' ? en : zh);
-      const getLmCode = (lm) => (lang === 'en' ? lm?.codeEn : lm?.code);
-      const getLmName = (lm) => (lang === 'en' ? lm?.nameEn : lm?.name);
+      const getLmCode = (lm) => (lang === 'en' ? (lm?.codeEn || lm?.code) : lm?.code);
+      const getLmName = (lm) => (lang === 'en' ? (lm?.nameEn || lm?.name) : lm?.name);
 
       const showToast = (msg) => {
         setToast(msg);
-        setTimeout(() => setToast(null), 3000);
+        setTimeout(() => setToast(null), 3200);
       };
 
       const formatExactTime = (ts) => {
@@ -236,14 +303,14 @@
         return t(`${Math.floor(mins / 60)}小時前`, `${Math.floor(mins / 60)}h ago`);
       };
 
-      // 執行打卡定位 (結合「人在哪裡」+「正在看哪個 DJ」二合一)
-      const handleCheckIn = (landmarkIdOverride, customCoords = null) => {
+      // 執行打卡定位 (結合「人在哪裡」+「正在看哪個 DJ」二合一，並同步上雲端)
+      const handleCheckIn = async (landmarkIdOverride, customCoords = null) => {
         const targetId = landmarkIdOverride || selectedLandmark;
         const lm = LANDMARKS.find(l => l.id === targetId) || LANDMARKS[0];
-        const myId = `user_${myProfile.name}`;
+        const safeKey = `user_${myProfile.name.replace(/[.#$/\[\]\s]/g, '_')}`;
 
         const newEntry = {
-          id: myId,
+          id: safeKey,
           name: myProfile.name,
           partySize: myProfile.partySize || 1,
           landmarkId: targetId,
@@ -257,11 +324,44 @@
           updatedAt: Date.now()
         };
 
-        setCheckins(prev => [newEntry, ...prev.filter(c => c.id !== myId && c.name !== myProfile.name)]);
-        setActiveMapPinId(myId);
+        // 立即更新畫面
+        setCheckins(prev => [newEntry, ...prev.filter(c => c.id !== safeKey && c.name !== myProfile.name)]);
+        setActiveMapPinId(safeKey);
         setMapPinMode(false);
         setShowCheckinSheet(false);
-        showToast(t(`📍 已定位在【${lm.code} ${lm.name}】！`, `📍 Checked in at [${lm.codeEn}]!`));
+        setStatusNote('');
+        showToast(t(`📍 已同步定位在【${lm.code} ${lm.name}】！全團地圖已更新！`, `📍 Synced at [${lm.codeEn}]!`));
+
+        // 寫入 Firebase 雲端即時資料庫
+        try {
+          await fetch(`${FIREBASE_DB_URL}/checkins/${encodeURIComponent(safeKey)}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newEntry)
+          });
+          setCloudSyncStatus('live');
+        } catch (err) {
+          console.error('Cloud write error:', err);
+          setCloudSyncStatus('offline');
+        }
+      };
+
+      // 清除範例打卡資料 (正式出發時可一鍵清空假資料)
+      const handleClearDemoData = async () => {
+        const realOnly = checkins.filter(c => !c.id.startsWith('u'));
+        setCheckins(realOnly);
+        try {
+          const cleanObj = {};
+          realOnly.forEach(item => { cleanObj[item.id] = item; });
+          await fetch(`${FIREBASE_DB_URL}/checkins.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanObj)
+          });
+          showToast(t('🧹 已清除預設範例名單，目前僅顯示真人打卡！', '🧹 Cleared demo data!'));
+        } catch (e) {
+          console.error(e);
+        }
       };
 
       // 手機真實 GPS 定位
@@ -359,8 +459,15 @@
                 <span className="font-black text-xs sm:text-sm tracking-tight bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent truncate">
                   TML THAILAND
                 </span>
-                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                  ● {totalHeadcount}{t('人', ' ON')}
+                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
+                  cloudSyncStatus === 'live'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${cloudSyncStatus === 'live' ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                  {cloudSyncStatus === 'live'
+                    ? t(`雲端同步・${totalHeadcount}人`, `LIVE • ${totalHeadcount}`)
+                    : t(`離線模式・${totalHeadcount}人`, `LOCAL • ${totalHeadcount}`)}
                 </span>
               </div>
 
@@ -737,6 +844,17 @@
             {activeTab === 'friends' && (
               <div className="space-y-3">
                 <div className="p-3.5 rounded-3xl bg-slate-900 border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold text-amber-300">
+                      👥 {t(`全團即時動態 (${totalHeadcount}人)`, `Live Squad Status (${totalHeadcount})`)}
+                    </span>
+                    <button
+                      onClick={handleClearDemoData}
+                      className="text-[10px] text-slate-400 hover:text-rose-400 underline"
+                    >
+                      🧹 {t('清除測試範例名單', 'Clear Demo Data')}
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={searchQuery}
