@@ -38,9 +38,11 @@
     const FIREBASE_DB_URL = "https://tml2026-default-rtdb.asia-southeast1.firebasedatabase.app";
     // 🔐 團長隱藏重置密碼 (連點「全團即時動態」標題 5 下可呼叫重置視窗)
     const ADMIN_RESET_PIN = "2026";
+    // 舊版測試假人 ID 清單（載入時自動從雲端清除）
+    const LEGACY_DEMO_IDS = ['u1', 'u2', 'u4', 'u6', 'u7', 'u10'];
 
     // ==========================================
-    // 園區固定集合點 (A~F點 + SOS)
+    // 園區固定集合點 (A~F點 + SOS) 與動態 DJ 時刻表
     // ==========================================
     const LANDMARKS = [
       {
@@ -59,7 +61,21 @@
         mapY: 22,
         lat: 12.9548,
         lng: 101.0168,
-        hotDjs: ['Mainstage 大咖', 'Martin Garrix', 'Armin van Buuren', 'Dom Dolla', 'John Summit', 'FISHER', 'Charlotte de Witte', 'Lost Frequencies']
+        schedule: {
+          D1: [
+            { start: '18:30', end: '19:45', dj: 'Lost Frequencies' },
+            { start: '20:30', end: '21:45', dj: 'Dom Dolla' },
+            { start: '22:45', end: '24:00', dj: 'Martin Garrix' }
+          ],
+          D2: [
+            { start: '18:30', end: '20:00', dj: 'John Summit' },
+            { start: '22:45', end: '24:00', dj: 'Armin van Buuren' }
+          ],
+          D3: [
+            { start: '19:30', end: '21:00', dj: 'FISHER' },
+            { start: '22:30', end: '24:00', dj: 'Charlotte de Witte' }
+          ]
+        }
       },
       {
         id: 'B',
@@ -77,7 +93,21 @@
         mapY: 33,
         lat: 12.9538,
         lng: 101.0206,
-        hotDjs: ['Sub Focus', 'Dimension', 'WORSHIP', 'Anyma', 'Culture Shock', '1991', 'Wilkinson']
+        schedule: {
+          D1: [
+            { start: '17:30', end: '18:45', dj: '1991' },
+            { start: '19:00', end: '20:15', dj: 'Culture Shock' },
+            { start: '21:30', end: '23:00', dj: 'Anyma (Genesys)' }
+          ],
+          D2: [
+            { start: '17:00', end: '18:30', dj: 'Wilkinson' },
+            { start: '20:00', end: '21:15', dj: 'Dimension' },
+            { start: '21:15', end: '22:30', dj: 'Sub Focus' }
+          ],
+          D3: [
+            { start: '21:00', end: '22:30', dj: 'WORSHIP' }
+          ]
+        }
       },
       {
         id: 'C',
@@ -95,7 +125,11 @@
         mapY: 53,
         lat: 12.9524,
         lng: 101.0155,
-        hotDjs: ['Keinemusik', 'Disclosure', 'HAAi', 'Bicep']
+        schedule: {
+          D1: [{ start: '20:00', end: '22:00', dj: 'Disclosure' }],
+          D2: [{ start: '20:00', end: '22:00', dj: 'Bicep' }],
+          D3: [{ start: '18:00', end: '19:30', dj: 'Keinemusik' }]
+        }
       },
       {
         id: 'D',
@@ -113,7 +147,11 @@
         mapY: 76,
         lat: 12.9508,
         lng: 101.0163,
-        hotDjs: ['Amelie Lens', 'Amber Broos', 'I Hate Models', '999999999']
+        schedule: {
+          D1: [{ start: '21:00', end: '23:00', dj: 'I Hate Models' }],
+          D2: [{ start: '21:30', end: '23:00', dj: 'Amelie Lens' }],
+          D3: [{ start: '21:00', end: '23:00', dj: '999999999' }]
+        }
       },
       {
         id: 'E',
@@ -131,7 +169,7 @@
         mapY: 54,
         lat: 12.9525,
         lng: 101.0182,
-        hotDjs: ['吃飯喝酒休息 / Eating & Chilling', '裝水補血 / Water Refill']
+        quickTags: ['吃飯喝酒休息 / Chilling', '裝水補血 / Water Refill']
       },
       {
         id: 'F',
@@ -149,7 +187,7 @@
         mapY: 88,
         lat: 12.9495,
         lng: 101.0183,
-        hotDjs: ['剛進場 / Just Arrived', '準備散場搭車 / Leaving Together']
+        quickTags: ['剛進場 / Just Arrived', '準備散場搭車 / Leaving']
       },
       {
         id: 'SOS',
@@ -167,32 +205,36 @@
         mapY: 8,
         lat: 12.9555,
         lng: 101.0184,
-        hotDjs: ['手機快沒電 / Low Battery', '身體不適或走失 / Need Help']
+        quickTags: ['手機快沒電 / Low Battery', '身體不適或走失 / Need Help']
       }
     ];
+
+    // 自動判斷今天為 D1(12/11) / D2(12/12) / D3(12/13)
+    const getInitialFestivalDay = () => {
+      const now = new Date();
+      if (now.getMonth() === 11 && now.getDate() === 12) return 'D2';
+      if (now.getMonth() === 11 && now.getDate() === 13) return 'D3';
+      return 'D1';
+    };
+
+    // 判斷某時段是否為「正在表演 (NOW)」
+    const isSlotPlayingNow = (slot, nowDate) => {
+      const curMins = nowDate.getHours() * 60 + nowDate.getMinutes();
+      const [sh, sm] = slot.start.split(':').map(Number);
+      const [eh, em] = slot.end.split(':').map(Number);
+      const startMins = sh * 60 + sm;
+      const endMins = eh * 60 + em;
+      return curMins >= startMins && curMins < endMins;
+    };
 
     function App() {
       const [activeTab, setActiveTab] = useState('map'); // 'map' | 'friends' | 'guide'
       const [lang, setLang] = useState('zh');
-
-      // 個人身分
-      const [myProfile, setMyProfile] = useState(() => {
-        const saved = localStorage.getItem('tml_my_profile_prod');
-        return saved ? JSON.parse(saved) : { name: '', partySize: 1 };
-      });
-      const [isEditingProfile, setIsEditingProfile] = useState(() => {
-        return !localStorage.getItem('tml_my_profile_prod');
-      });
-      const [tempName, setTempName] = useState(myProfile.name || '');
-      const [tempPartySize, setTempPartySize] = useState(myProfile.partySize || 1);
-
-      // 定位資料陣列
-      const [checkins, setCheckins] = useState(() => {
-        const saved = localStorage.getItem('tml_checkins_prod');
-        return saved ? JSON.parse(saved) : [];
+      const [festivalDay, setFestivalDay] = useState(getInitialFestivalDay);
       });
 
       const [selectedLandmark, setSelectedLandmark] = useState('A');
+      const [festivalDay, setFestivalDay] = useState(() => getDefaultFestivalDay());
       const [watchingDj, setWatchingDj] = useState('');
       const [statusNote, setStatusNote] = useState('');
       const [activeMapPinId, setActiveMapPinId] = useState(null);
@@ -228,7 +270,7 @@
       }, [myProfile]);
 
       // ==========================================
-      // 🌐 跨手機雲端 0 秒即時同步
+      // 🌐 跨手機雲端 0 秒即時同步（並自動清理舊測試假人）
       // ==========================================
       const fetchCloudCheckins = async () => {
         try {
@@ -236,8 +278,17 @@
           if (!res.ok) throw new Error('Network error');
           const data = await res.json();
           if (data && typeof data === 'object') {
-            const list = Object.values(data).filter(Boolean);
-            setCheckins(list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
+            const entries = Object.entries(data).filter(([, v]) => Boolean(v));
+            const demoKeys = entries.filter(([k, v]) => LEGACY_DEMO_IDS.includes(k) || LEGACY_DEMO_IDS.includes(v?.id));
+            if (demoKeys.length > 0) {
+              demoKeys.forEach(([k]) => {
+                fetch(`${FIREBASE_DB_URL}/checkins/${encodeURIComponent(k)}.json`, { method: 'DELETE' }).catch(() => {});
+              });
+            }
+            const realList = entries
+              .filter(([k, v]) => !LEGACY_DEMO_IDS.includes(k) && !LEGACY_DEMO_IDS.includes(v?.id))
+              .map(([, v]) => v);
+            setCheckins(realList.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
           } else {
             setCheckins([]);
           }
@@ -475,6 +526,26 @@
       const currentLmObj = LANDMARKS.find(l => l.id === selectedLandmark) || LANDMARKS[0];
       const hasMyCheckin = useMemo(() => checkins.some(c => c.name === myProfile.name.trim()), [checkins, myProfile.name]);
 
+      // 依日期與目前時間自動排序該舞台 DJ（正在放歌的排最前面並亮 NOW）
+      const dynamicDjOptions = useMemo(() => {
+        if (!currentLmObj.schedule) {
+          return (currentLmObj.quickTags || []).map(tag => ({ label: tag, value: tag, isNow: false }));
+        }
+        const daySlots = currentLmObj.schedule[festivalDay] || [];
+        const nowDate = new Date(nowTick);
+        return daySlots
+          .map(slot => {
+            const playing = isSlotPlayingNow(slot, nowDate);
+            return {
+              ...slot,
+              isNow: playing,
+              label: `${slot.start} ${slot.dj}`,
+              value: `${slot.dj} (${slot.start})`
+            };
+          })
+          .sort((a, b) => (b.isNow ? 1 : 0) - (a.isNow ? 1 : 0));
+      }, [currentLmObj, festivalDay, nowTick]);
+
       return (
         <div className="min-h-screen flex flex-col bg-[#090714] text-slate-100 pb-20">
           {/* 浮動 Toast */}
@@ -605,79 +676,80 @@
                   🚨 {t(`緊急求助 / 走失通報 (${sosPeople.length})`, `SOS / Emergency Alert (${sosPeople.length})`)}
                 </div>
                 {sosPeople.map(p => (
-                  <div key={p.id} className="text-xs text-white bg-red-900/70 px-2.5 py-1 rounded-lg">
-                    <span className="font-bold">{p.name}</span>：{p.note} ({formatExactTime(p.updatedAt)})
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 極簡單行集合提醒條 */}
-            <div className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2 text-[11px] text-amber-200">
-              <span className="truncate font-medium">
-                🍻 {t('每日 20:00【A點：主舞台左後大樹】大合照！', 'Daily 20:00 @ [Point A: Mainstage Tree] Group Photo!')}
-              </span>
-              <button
-                onClick={() => setActiveTab('guide')}
-                className="text-[10px] font-extrabold text-amber-400 underline shrink-0"
-              >
-                {t('看攻略>', 'Guide>')}
-              </button>
-            </div>
-
-            {/* ==========================================
-                TAB 1: 🗺️ 定位地圖
-            ========================================== */}
-            {activeTab === 'map' && (
-              <div className="space-y-2.5">
-                <section className="rounded-3xl bg-slate-900 border border-amber-500/40 overflow-hidden shadow-2xl">
-                  {/* 地圖上方單行控制列 */}
-                  <div className="px-2.5 py-2 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-1.5 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={handleGpsLocate}
-                        className="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/50 text-cyan-200 text-[11px] font-extrabold"
-                      >
-                        🛰️ {t('GPS定位', 'GPS')}
-                      </button>
-                      <button
-                        onClick={() => setMapPinMode(!mapPinMode)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border ${
-                          mapPinMode ? 'bg-amber-400 text-slate-950 border-white animate-pulse' : 'bg-slate-900 text-amber-300 border-amber-500/30'
-                        }`}
-                      >
-                        🎯 {mapPinMode ? t('點地圖插旗', 'Tap Map') : t('手點地圖', 'Pin Map')}
-                      </button>
+                  {/* 第二步：依日期與時間自動連動該舞台 DJ 或狀態 */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400 truncate">
+                        🎧 {t(`【${currentLmObj.code}】時段 DJ / 狀態：`, `[${currentLmObj.codeEn}] Set / Status:`)}
+                      </span>
+                      {currentLmObj.timetable && (
+                        <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
+                          {[
+                            { id: 'D1', label: 'D1 12/11' },
+                            { id: 'D2', label: 'D2 12/12' },
+                            { id: 'D3', label: 'D3 12/13' }
+                          ].map(d => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDay(d.id);
+                                setWatchingDj('');
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold transition ${
+                  {/* 第二步：依日期與時間自動聯動的 DJ 標籤 */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400 truncate">
+                        🎧 {t(`【${currentLmObj.code}】選擇正在看的 DJ / 狀態：`, `[${currentLmObj.codeEn}] Select DJ / Status:`)}
+                      </span>
+                      {currentLmObj.schedule && (
+                        <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
+                          {[
+                            { id: 'D1', label: 'D1 12/11' },
+                            { id: 'D2', label: 'D2 12/12' },
+                            { id: 'D3', label: 'D3 12/13' }
+                          ].map(d => (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                setFestivalDay(d.id);
+                                setWatchingDj('');
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold transition ${
+                                festivalDay === d.id ? 'bg-purple-500 text-white' : 'text-slate-400'
+                              }`}
+                            >
+                              {d.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[10px] font-bold">
-                      <button
-                        onClick={() => setMapStyle('illustrated')}
-                        className={`px-2 py-0.5 rounded ${mapStyle === 'illustrated' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-                      >
-                        {t('園區圖', 'Park')}
-                      </button>
-                      <button
-                        onClick={() => setMapStyle('satellite')}
-                        className={`px-2 py-0.5 rounded ${mapStyle === 'satellite' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-                      >
-                        {t('衛星', 'Sat')}
-                      </button>
-                      <label className={`px-2 py-0.5 rounded cursor-pointer ${mapStyle === 'custom' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}>
-                        🖼️ {t('換圖', 'Img')}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={e => {
-                            const f = e.target.files?.[0];
-                            if (f) {
-                              setCustomMapUrl(URL.createObjectURL(f));
-                              setMapStyle('custom');
-                            }
-                          }}
-                        />
-                      </label>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      {dynamicDjOptions.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setWatchingDj(watchingDj === opt.value ? '' : opt.value)}
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border flex items-center gap-1 transition ${
+                            watchingDj === opt.value
+                              ? 'bg-purple-500 text-white border-purple-300 shadow'
+                              : opt.isNow
+                              ? 'bg-rose-950/70 text-rose-200 border-rose-500/60'
+                              : 'bg-slate-950 text-slate-300 border-slate-800'
+                          }`}
+                        >
+                          {opt.isNow && (
+                            <span className="px-1 py-0.2 rounded bg-rose-500 text-white text-[9px] font-black animate-pulse">
+                              NOW
+                            </span>
+                          )}
+                          <span>🎧 {opt.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -835,102 +907,102 @@
                             </span>
                             {p.watchingDj && (
                               <span className="text-[10px] font-extrabold bg-purple-500/25 text-purple-200 border border-purple-500/40 px-1.5 py-0.5 rounded">
-                                🎧 {p.watchingDj}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-emerald-400 font-mono">
-                              🕒 {formatExactTime(p.updatedAt)} ({formatTimeAgo(p.updatedAt)})
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-300 truncate">💬 {p.note}</p>
-                        </div>
-                        <a
-                          href={`https://www.google.com/maps?q=${p.lat || lm.lat},${p.lng || lm.lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="shrink-0 px-2.5 py-1.5 rounded-xl bg-slate-800 text-amber-300 border border-amber-500/30 text-[11px] font-bold"
-                        >
-                          {t('導航 ↗', 'Maps ↗')}
-                        </a>
-                      </div>
-                    );
-                  })()}
-                </section>
-
-                {/* ==========================================
-                    📍 二合一快速打卡面板
-                ========================================== */}
-                <section className="p-3.5 rounded-3xl bg-slate-900/90 border border-amber-500/30 space-y-3">
-                  <div className="flex items-center justify-between gap-1">
-                    <h2 className="text-xs font-black text-amber-300">
-                      📍 {t('一鍵定位打卡（地點 ＋ 看哪個 DJ）', '1-Tap Check-In (Spot + DJ)')}
-                    </h2>
-                    <div className="flex gap-1 shrink-0">
-                      <button
-                        onClick={() => copyLineText('me')}
-                        className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold"
-                      >
-                        📋 {t('複製我的位置', 'Copy Mine')}
-                      </button>
-                      <button
-                        onClick={() => copyLineText('all')}
-                        className="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold"
-                      >
-                        📢 {t('複製全團', 'Copy All')}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 第一步：點選 A~F 點 + SOS */}
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-                    {LANDMARKS.map(lm => {
-                      const isSel = selectedLandmark === lm.id;
-                      const isSos = lm.id === 'SOS';
-                      return (
-                        <button
-                          key={lm.id}
-                          onClick={() => {
-                            setSelectedLandmark(lm.id);
-                            setWatchingDj('');
-                          }}
-                          className={`p-2 rounded-xl border text-left transition ${
-                            isSos
-                              ? isSel
-                                ? 'bg-red-600 text-white border-white ring-1 ring-white'
-                                : 'bg-red-950/40 border-red-500/50 text-red-200'
-                              : isSel
-                              ? 'bg-amber-500/25 border-amber-400 ring-1 ring-amber-400'
-                              : 'bg-slate-950 border-slate-800'
-                          }`}
-                        >
-                          <div className="text-xs font-black text-white">{lm.icon} {getLmCode(lm)}</div>
-                          <div className="text-[10px] text-slate-400 truncate mt-0.5">{lm.stage}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* 第二步：順手點選該舞台熱門 DJ 或狀態 */}
+                  {/* 第二步：順手點選該舞台「依日期與時段自動排列」的 DJ 或狀態 */}
                   <div className="space-y-1.5">
-                    <div className="text-[11px] text-slate-400">
-                      🎧 {t(`在【${currentLmObj.code}】看哪個 DJ / 狀態？（點一下快速帶入，可不選）`, `Watching which DJ / Status at [${currentLmObj.codeEn}]?`)}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[11px] text-slate-400">
+                        🎧 {t(`【${currentLmObj.code}】${currentLmObj.schedule ? '目前時段 DJ' : '快速狀態'}：`, `[${currentLmObj.codeEn}] ${currentLmObj.schedule ? 'Lineup' : 'Status'}:`)}
+                      </span>
+                      {currentLmObj.schedule && (
+                        <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                          {['Day 1', 'Day 2', 'Day 3'].map(d => (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => {
+                                setFestivalDay(d);
+                                setWatchingDj('');
+                              }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-extrabold transition ${
+                                festivalDay === d
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {d === 'Day 1' ? 'D1 12/11' : d === 'Day 2' ? 'D2 12/12' : 'D3 12/13'}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    {/* 動態渲染該日該舞台的 DJ 時段按鈕（正在放歌的自動亮起 🔴 NOW 並排在最前面） */}
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                      {(currentLmObj.hotDjs || []).map(djName => (
-                        <button
-                          key={djName}
-                          type="button"
-                          onClick={() => setWatchingDj(watchingDj === djName ? '' : djName)}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border transition ${
-                            watchingDj === djName
-                              ? 'bg-purple-500 text-white border-purple-300 shadow'
-                              : 'bg-slate-950 text-slate-300 border-slate-800'
-                          }`}
-                        >
-                          🎧 {djName}
-                        </button>
-                      ))}
+                      {currentLmObj.schedule ? (
+                        (() => {
+                          const nowObj = new Date(nowTick);
+                          const dayList = (currentLmObj.schedule[festivalDay] || []).map(slot => ({
+                            ...slot,
+                            isNow: isSetPlayingNow(slot.time, nowObj)
+                          }));
+                          // 正在表演的 DJ 自動排到第一個
+                          const sortedList = [...dayList].sort((a, b) => (b.isNow ? 1 : 0) - (a.isNow ? 1 : 0));
+
+                          return sortedList.map(slot => {
+                            const labelValue = `${slot.dj} (${slot.time})`;
+                            const isSelected = watchingDj === labelValue;
+                            return (
+                              <button
+                                key={slot.time + slot.dj}
+                                type="button"
+                                onClick={() => setWatchingDj(isSelected ? '' : labelValue)}
+                                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap border flex items-center gap-1.5 transition ${
+                                  isSelected
+                                    ? 'bg-purple-500 text-white border-purple-200 shadow-lg'
+                                    : slot.isNow
+                                    ? 'bg-rose-950/70 text-rose-200 border-rose-500/70 ring-1 ring-rose-500/40'
+                                    : 'bg-slate-950 text-slate-300 border-slate-800'
+                                }`}
+                              >
+                                {slot.isNow && (
+                                  <span className="px-1 py-0.2 rounded bg-rose-500 text-white text-[9px] font-black animate-pulse">
+                                    NOW
+                                  </span>
+                                )}
+                                <span className="font-mono text-[10px] text-amber-300">{slot.time}</span>
+                                <span>{slot.dj}</span>
+                              </button>
+                            );
+                          });
+                        })()
+                      ) : (
+                        (currentLmObj.quickStatus || []).map(st => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => setWatchingDj(watchingDj === st ? '' : st)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border transition ${
+                              watchingDj === st
+                                ? 'bg-purple-500 text-white border-purple-300 shadow'
+                                : 'bg-slate-950 text-slate-300 border-slate-800'
+                            }`}
+                          >
+                            ✨ {st}
+                          </button>
+                        ))
+                      )}
                     </div>
+
+                    {/* 支援臨時手動輸入 DJ 名稱 */}
+                    {currentLmObj.schedule && (
+                      <input
+                        type="text"
+                        value={watchingDj}
+                        onChange={e => setWatchingDj(e.target.value)}
+                        placeholder={t('或直接輸入其他 DJ 名稱（選填）...', 'Or type custom DJ name (optional)...')}
+                        className="w-full px-3 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-purple-200 placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                      />
+                    )}
                   </div>
 
                   {/* 第三步：一句話備註 + 立即打卡按鈕 */}
