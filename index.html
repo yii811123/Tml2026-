@@ -227,6 +227,12 @@
       return curMins >= startMins && curMins < endMins;
     };
 
+    // 將 HH:MM 轉換為當天分鐘數（支援跨午夜 00:00~03:00）
+    const timeToMins = (timeStr) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return (h < 6 ? h + 24 : h) * 60 + m;
+    };
+
     function App() {
       const [activeTab, setActiveTab] = useState('map'); // 'map' | 'friends' | 'guide'
       const [lang, setLang] = useState('zh');
@@ -547,24 +553,52 @@
       const currentLmObj = LANDMARKS.find(l => l.id === selectedLandmark) || LANDMARKS[0];
       const hasMyCheckin = useMemo(() => checkins.some(c => c.name === myProfile.name.trim()), [checkins, myProfile.name]);
 
-      // 依日期與目前時間自動排序該舞台 DJ（正在放歌的排最前面並亮 NOW）
+      // 依日期與目前時間自動鎖定「現在正在演 (NOW) + 下兩個時段 (NEXT 1 & NEXT 2)」
       const dynamicDjOptions = useMemo(() => {
         if (!currentLmObj.schedule) {
-          return (currentLmObj.quickTags || []).map(tag => ({ label: tag, value: tag, isNow: false }));
+          return (currentLmObj.quickTags || []).map(tag => ({
+            label: tag,
+            value: tag,
+            badge: null,
+            isNow: false
+          }));
         }
-        const daySlots = currentLmObj.schedule[festivalDay] || [];
+        const daySlots = [...(currentLmObj.schedule[festivalDay] || [])].sort(
+          (a, b) => timeToMins(a.start) - timeToMins(b.start)
+        );
         const nowDate = new Date(nowTick);
-        return daySlots
-          .map(slot => {
-            const playing = isSlotPlayingNow(slot, nowDate);
-            return {
-              ...slot,
-              isNow: playing,
-              label: `${slot.start} ${slot.dj}`,
-              value: `${slot.dj} (${slot.start})`
-            };
-          })
-          .sort((a, b) => (b.isNow ? 1 : 0) - (a.isNow ? 1 : 0));
+        const rawCurMins = nowDate.getHours() * 60 + nowDate.getMinutes();
+        const curMins = rawCurMins < 6 ? rawCurMins + 24 * 60 : rawCurMins;
+
+        // 找出目前正在演出的場次索引，或下一場即將開始的場次索引
+        const playingIdx = daySlots.findIndex(
+          slot => curMins >= timeToMins(slot.start) && curMins < timeToMins(slot.end)
+        );
+
+        let targetSlice = [];
+        if (playingIdx !== -1) {
+          // 正在演出 + 下兩個時段 (共 3 場)
+          targetSlice = daySlots.slice(playingIdx, playingIdx + 3).map((slot, idx) => ({
+            ...slot,
+            badge: idx === 0 ? 'NOW' : idx === 1 ? 'NEXT 1' : 'NEXT 2',
+            isNow: idx === 0
+          }));
+        } else {
+          // 若目前在第一場之前（白天剛進場），顯示接下來即將登場的前 3 個時段
+          const upcomingIdx = daySlots.findIndex(slot => timeToMins(slot.start) > curMins);
+          const startIdx = upcomingIdx !== -1 ? upcomingIdx : Math.max(0, daySlots.length - 3);
+          targetSlice = daySlots.slice(startIdx, startIdx + 3).map((slot, idx) => ({
+            ...slot,
+            badge: upcomingIdx !== -1 ? `NEXT ${idx + 1}` : null,
+            isNow: false
+          }));
+        }
+
+        return targetSlice.map(slot => ({
+          ...slot,
+          label: `${slot.start}-${slot.end} ${slot.dj}`,
+          value: `${slot.dj} (${slot.start})`
+        }));
       }, [currentLmObj, festivalDay, nowTick]);
 
       return (
@@ -1026,7 +1060,7 @@
                           key={opt.value}
                           type="button"
                           onClick={() => setWatchingDj(watchingDj === opt.value ? '' : opt.value)}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border flex items-center gap-1 transition ${
+                          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap border flex items-center gap-1.5 transition ${
                             watchingDj === opt.value
                               ? 'bg-purple-500 text-white border-purple-300 shadow'
                               : opt.isNow
@@ -1034,9 +1068,15 @@
                               : 'bg-slate-950 text-slate-300 border-slate-800'
                           }`}
                         >
-                          {opt.isNow && (
-                            <span className="px-1 py-0.2 rounded bg-rose-500 text-white text-[9px] font-black animate-pulse">
-                              NOW
+                          {opt.badge && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                                opt.isNow
+                                  ? 'bg-rose-500 text-white animate-pulse'
+                                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              }`}
+                            >
+                              {opt.badge}
                             </span>
                           )}
                           <span>🎧 {opt.label}</span>
