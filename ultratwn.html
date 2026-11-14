@@ -635,4 +635,747 @@
       return (
         <div className="min-h-screen bg-[#07090e] text-slate-100 pb-28 flex flex-col max-w-lg mx-auto border-x border-slate-800/60 shadow-2xl">
           {/* 頂部導覽列 */}
-          <header className="sticky top-0 z-40 bg-[#07090e]/95 backdrop-blur-md border-b border-cyan-500/20 px
+          <header className="sticky top-0 z-40 bg-[#07090e]/95 backdrop-blur-md border-b border-cyan-500/20 px-3 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center font-black text-slate-950 text-lg shrink-0 shadow-lg shadow-cyan-500/20">
+                U
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="font-black text-sm tracking-wide text-white truncate">ULTRA TW 2026</h1>
+                  <span
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      syncStatus === "live"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${syncStatus === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                    {totalHeadcount}{lang === "zh" ? "人" : " ppl"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 truncate">11/14 大佳河濱公園・雙錨點精準定位</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setLang(lang === "zh" ? "en" : "zh")}
+                className="px-2 py-1 rounded-lg bg-slate-800/90 border border-slate-700 text-[11px] font-bold text-cyan-300 active:scale-95"
+              >
+                {lang === "zh" ? "EN" : "中文"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempName(myProfile.name);
+                  setTempPlus(myProfile.plusOnes || 0);
+                  setIsEditingProfile(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-[11px] font-bold text-cyan-200 flex items-center gap-1 max-w-[115px] truncate active:scale-95"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+                <span className="truncate">
+                  {myProfile.name ? `${myProfile.name}${myProfile.plusOnes > 0 ? `+${myProfile.plusOnes}` : ""}` : lang === "zh" ? "設定名字" : "Set Name"}
+                </span>
+              </button>
+            </div>
+          </header>
+
+          {/* SOS 緊急置頂警報 */}
+          {sosUsers.length > 0 && (
+            <div className="bg-rose-600 text-white px-3 py-2 text-xs font-bold flex items-center justify-between animate-pulse">
+              <span>
+                🚨 {lang === "zh" ? "緊急求助：" : "SOS ALERT: "}
+                {sosUsers.map((u) => `${u.name} (${LANDMARKS.find((l) => l.id === u.landmarkId)?.codeZh || ""})`).join("、")}
+              </span>
+            </div>
+          )}
+
+          {/* 首次開啟 / 編輯個人資料彈窗 */}
+          {isEditingProfile && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <form onSubmit={handleSaveProfile} className="bg-slate-900 border border-cyan-500/40 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4">
+                <div>
+                  <h2 className="text-base font-black text-white">
+                    {lang === "zh" ? "⚡ 設定你的現場暱稱" : "⚡ Set Your Festival Name"}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {lang === "zh" ? "輸入大家認得出的名字或 IG，同行夥伴可選「我+幾人」代表打卡。" : "Enter your name or IG so friends can spot you on the map."}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    {lang === "zh" ? "你的暱稱 / IG 帳號 *" : "Your Name / IG *"}
+                  </label>
+                  <input
+                    type="text"
+                    value={tempName}
+                    onChange={(e) => setTempName(e.target.value)}
+                    placeholder={lang === "zh" ? "例如：阿華 / @leo_tw" : "e.g. Alex / @alex_tw"}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:border-cyan-400 focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    {lang === "zh" ? "同行人數（小隊代表可選我+幾人）" : "Group Size (Representing friends)"}
+                  </label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[0, 1, 2, 3, 4].map((num) => (
+                      <button
+                        type="button"
+                        key={num}
+                        onClick={() => setTempPlus(num)}
+                        className={`py-2 rounded-lg text-xs font-bold border transition ${
+                          tempPlus === num
+                            ? "bg-cyan-500 text-slate-950 border-cyan-400"
+                            : "bg-slate-950 text-slate-300 border-slate-800"
+                        }`}
+                      >
+                        {num === 0 ? (lang === "zh" ? "自己1人" : "Solo") : `+${num}${lang === "zh" ? "人" : ""}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  {myProfile.name && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                    >
+                      {lang === "zh" ? "取消" : "Cancel"}
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 text-xs font-black shadow-lg"
+                  >
+                    {lang === "zh" ? "確認進入地圖" : "Enter Map"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ========================================== */}
+          {/* TAB 1: 即時定位地圖 & 一鍵打卡              */}
+          {/* ========================================== */}
+          {activeTab === "map" && (
+            <main className="p-3 space-y-3">
+              {/* 地圖頂部控制列 */}
+              <div className="flex flex-wrap items-center justify-between gap-1.5 bg-slate-900/80 border border-slate-800 rounded-xl p-2">
+                <div className="flex items-center gap-1">
+                  {[
+                    { id: "sitemap", zh: "官方圖", en: "Sitemap" },
+                    { id: "hybrid", zh: "🔀 衛星疊合", en: "🔀 Hybrid" },
+                    { id: "satellite", zh: "🛰️ 純衛星", en: "🛰️ Satellite" }
+                  ].map((m) => (
+                    <button
+                      type="button"
+                      key={m.id}
+                      onClick={() => setMapMode(m.id)}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${
+                        mapMode === m.id ? "bg-cyan-500 text-slate-950" : "bg-slate-800 text-slate-300"
+                      }`}
+                    >
+                      {lang === "zh" ? m.zh : m.en}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] font-bold text-amber-300"
+                    title="載入相簿裡的官方原圖"
+                  >
+                    🖼️ {lang === "zh" ? "載入原圖" : "Upload"}
+                  </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUploadCustomMap} className="hidden" />
+                </div>
+
+                {/* 時間選擇器 */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-400">⏰</span>
+                  <select
+                    value={simTime}
+                    onChange={(e) => setSimTime(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-1.5 py-1 text-[11px] font-bold text-cyan-300 focus:outline-none"
+                  >
+                    <option value="REAL">
+                      {lang === "zh" ? `真實時間 (${realTimeStr})` : `Live (${realTimeStr})`}
+                    </option>
+                    <option value="12:30">模擬 12:30 (開場)</option>
+                    <option value="14:00">模擬 14:00 (午場)</option>
+                    <option value="16:15">模擬 16:15 (Levity / Chris)</option>
+                    <option value="18:30">模擬 18:30 (Bunt / Korolova)</option>
+                    <option value="20:15">模擬 20:15 (Ingrosso / CamelPhat)</option>
+                    <option value="21:15">模擬 21:15 (Alan Walker / CamelPhat)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* 衛星疊合透明度拉桿 */}
+              {mapMode === "hybrid" && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-cyan-500/30 rounded-xl text-[11px]">
+                  <span className="text-cyan-300 font-bold shrink-0">
+                    {lang === "zh" ? "官方圖透視度" : "Sitemap Opacity"}
+                  </span>
+                  <input
+                    type="range"
+                    min="0.15"
+                    max="0.95"
+                    step="0.05"
+                    value={hybridOpacity}
+                    onChange={(e) => setHybridOpacity(parseFloat(e.target.value))}
+                    className="w-full accent-cyan-400"
+                  />
+                  <span className="text-slate-400 w-8 text-right">{Math.round(hybridOpacity * 100)}%</span>
+                </div>
+              )}
+
+              {/* 互動園區雷達地圖畫布 */}
+              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden border border-cyan-500/30 bg-slate-950 shadow-xl">
+                {(mapMode === "satellite" || mapMode === "hybrid") && (
+                  <iframe
+                    title="Dajia Satellite Map"
+                    src={`https://maps.google.com/maps?q=${PARK_BOUNDS.centerLat},${PARK_BOUNDS.centerLng}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
+                    className="absolute inset-0 w-full h-full border-0 pointer-events-none scale-125"
+                  />
+                )}
+
+                {mapMode !== "satellite" && (
+                  <div
+                    className="absolute inset-0 w-full h-full transition-opacity duration-200"
+                    style={{ opacity: mapMode === "hybrid" ? hybridOpacity : 1 }}
+                  >
+                    {customMapImg ? (
+                      <img src={customMapImg} alt="Official Sitemap" className="w-full h-full object-cover" />
+                    ) : (
+                      <OfficialSitemapSVG />
+                    )}
+                  </div>
+                )}
+
+                {/* 地圖上的 A ~ F 地標與人員名牌 */}
+                {LANDMARKS.map((lm) => {
+                  const usersHere = checkinList.filter((u) => !u.isGps && u.landmarkId === lm.id);
+                  const countHere = usersHere.reduce((s, u) => s + 1 + (Number(u.plusOnes) || 0), 0);
+                  const isSelected = selectedLandmarkId === lm.id;
+
+                  return (
+                    <div
+                      key={lm.id}
+                      style={{ left: `${lm.mapX}%`, top: `${lm.mapY}%` }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLandmarkId(lm.id)}
+                        style={{
+                          borderColor: isSelected ? "#ffffff" : lm.color,
+                          backgroundColor: isSelected ? lm.color : "rgba(7, 9, 14, 0.88)",
+                          color: isSelected ? "#07090e" : "#ffffff"
+                        }}
+                        className="px-2 py-0.5 rounded-full border-2 text-[11px] font-black shadow-lg flex items-center gap-1 whitespace-nowrap transition-transform active:scale-95"
+                      >
+                        <span>{lang === "zh" ? lm.codeZh : lm.id}</span>
+                        {countHere > 0 && (
+                          <span
+                            className={`px-1 rounded-full text-[9px] font-black ${
+                              isSelected ? "bg-slate-950 text-white" : "bg-amber-400 text-slate-950"
+                            }`}
+                          >
+                            {countHere}
+                          </span>
+                        )}
+                      </button>
+
+                      {usersHere.length > 0 && (
+                        <div className="mt-1 flex flex-wrap justify-center gap-0.5 max-w-[115px] bg-slate-950/85 backdrop-blur-sm px-1 py-0.5 rounded-lg border border-slate-700/80 shadow-md">
+                          {usersHere.map((u) => (
+                            <button
+                              type="button"
+                              key={u.userId || u.name}
+                              onClick={() => setSelectedPinUser(u)}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold leading-tight truncate max-w-[105px] ${
+                                u.userId === myProfile.id
+                                  ? "bg-cyan-400 text-slate-950"
+                                  : "bg-slate-800 text-slate-100 hover:bg-slate-700"
+                              }`}
+                            >
+                              {u.name}
+                              {u.plusOnes > 0 ? `+${u.plusOnes}` : ""}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* GPS 真實經緯度自由大頭針 (雙錨點精準校準) */}
+                {checkinList
+                  .filter((u) => u.isGps)
+                  .map((u) => (
+                    <button
+                      type="button"
+                      key={u.userId || u.name}
+                      onClick={() => setSelectedPinUser(u)}
+                      style={{ left: `${u.mapX}%`, top: `${u.mapY}%` }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center"
+                    >
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-pulse-ring absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 border border-slate-950" />
+                      </span>
+                      <span className="mt-0.5 px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 text-[9px] font-black shadow whitespace-nowrap">
+                        🛰️ {u.name}
+                        {u.plusOnes > 0 ? `+${u.plusOnes}` : ""}
+                      </span>
+                    </button>
+                  ))}
+
+                {/* 地圖右下角 GPS 快速定位懸浮鈕 */}
+                <button
+                  type="button"
+                  onClick={handleGpsCheckin}
+                  className="absolute bottom-2.5 right-2.5 z-30 px-2.5 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-black text-[11px] shadow-lg flex items-center gap-1 active:scale-95"
+                >
+                  <span>🛰️</span>
+                  <span>{lang === "zh" ? "GPS 定位" : "GPS Pin"}</span>
+                </button>
+              </div>
+
+              {/* 點擊地圖名牌後的詳細資訊氣泡 */}
+              {selectedPinUser && (
+                <div className="bg-slate-900 border border-cyan-500/40 rounded-xl p-3 flex items-center justify-between gap-2 shadow-lg">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-sm text-cyan-300">
+                        {selectedPinUser.name}
+                        {selectedPinUser.plusOnes > 0 ? ` (+${selectedPinUser.plusOnes})` : ""}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                        {formatExactTime(selectedPinUser.timestamp)} ({formatTimeAgo(selectedPinUser.timestamp, lang)})
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5 truncate">
+                      📍 {LANDMARKS.find((l) => l.id === selectedPinUser.landmarkId)?.nameEn || "Ultra Taiwan"}
+                      {selectedPinUser.dj ? ` • 🎧 ${selectedPinUser.dj}` : ""}
+                      {selectedPinUser.note ? ` • ${selectedPinUser.note}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedPinUser.lat},${selectedPinUser.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-bold"
+                    >
+                      Google Maps
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPinUser(null)}
+                      className="p-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 一鍵定點打卡控制台 */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-black text-cyan-300 uppercase tracking-wider">
+                    {lang === "zh" ? "📍 1. 選擇你目前所在的舞台 / 區域" : "📍 1. Select Current Stage / Zone"}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={copyLineReport}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold active:scale-95"
+                  >
+                    📋 {lang === "zh" ? "複製 LINE 回報" : "Copy for LINE"}
+                  </button>
+                </div>
+
+                {/* A ~ F 集合點網格 */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {LANDMARKS.map((lm) => {
+                    const active = selectedLandmarkId === lm.id;
+                    return (
+                      <button
+                        type="button"
+                        key={lm.id}
+                        onClick={() => setSelectedLandmarkId(lm.id)}
+                        className={`p-2 rounded-xl border text-left transition active:scale-95 ${
+                          active
+                            ? "bg-cyan-500/20 border-cyan-400 text-white shadow-inner"
+                            : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs" style={{ color: active ? "#22d3ee" : lm.color }}>
+                            {lang === "zh" ? lm.codeZh : lm.codeEn}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-bold truncate mt-0.5 text-slate-200">
+                          {lang === "zh" ? lm.nameZh.replace(/^[A-Z\s]+\s/, "") : lm.nameEn}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 智慧時刻表連動：顯示 NOW + 下 2 個時段 DJ */}
+                {(selectedLandmarkId === "A" || selectedLandmarkId === "B") && (
+                  <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-300">
+                        🎧 {lang === "zh" ? `2. 正在看 / 準備看哪位 DJ (${activeClock} 連動)` : `2. Watching DJ (${activeClock} Live)`}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {relevantSets.map((item) => {
+                        const isPicked = selectedDj === item.dj && !customDjInput;
+                        return (
+                          <button
+                            key={item.dj + item.start}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDj(item.dj);
+                              setCustomDjInput("");
+                            }}
+                            className={`w-full px-2.5 py-2 rounded-lg border flex items-center justify-between text-left transition ${
+                              isPicked
+                                ? "bg-amber-500/20 border-amber-400 text-white"
+                                : "bg-slate-900/90 border-slate-800 text-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {item.status === "NOW" && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9px] font-black animate-pulse shrink-0">
+                                  🔴 NOW
+                                </span>
+                              )}
+                              {item.status === "NEXT 1" && (
+                                <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[9px] font-bold shrink-0">
+                                  NEXT 1
+                                </span>
+                              )}
+                              {item.status === "NEXT 2" && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-bold shrink-0">
+                                  NEXT 2
+                                </span>
+                              )}
+                              {item.status === "ENDED" && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 text-[9px] font-bold shrink-0">
+                                  ENDED
+                                </span>
+                              )}
+                              <span className="font-black text-xs truncate">{item.dj}</span>
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-400 shrink-0 ml-2">
+                              {item.start}-{item.end}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 備註快捷標籤 + 自訂輸入 */}
+                <div className="space-y-1.5">
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    {QUICK_NOTES.map((qn) => {
+                      const label = lang === "zh" ? qn.zh : qn.en;
+                      return (
+                        <button
+                          key={qn.zh}
+                          type="button"
+                          onClick={() => setNoteInput(noteInput === label ? "" : label)}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border ${
+                            noteInput === label
+                              ? "bg-cyan-500 text-slate-950 border-cyan-400"
+                              : "bg-slate-950 text-slate-300 border-slate-800"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    value={noteInput}
+                    onChange={(e) => setNoteInput(e.target.value)}
+                    placeholder={lang === "zh" ? "補充備註（選填，例如：穿白色背心、在吧台旁）" : "Optional note (e.g. Wearing white tank top)"}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:border-cyan-400 focus:outline-none"
+                  />
+                </div>
+
+                {/* 送出打卡按鈕 */}
+                <button
+                  type="button"
+                  onClick={handleLandmarkCheckin}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-slate-950 font-black text-sm shadow-lg shadow-cyan-500/20 active:scale-[0.99] transition"
+                >
+                  {lang === "zh"
+                    ? `⚡ 立即打卡更新位置 (${LANDMARKS.find((l) => l.id === selectedLandmarkId)?.codeZh})`
+                    : `⚡ Check-In Now (${LANDMARKS.find((l) => l.id === selectedLandmarkId)?.codeEn})`}
+                </button>
+              </div>
+            </main>
+          )}
+
+          {/* ========================================== */}
+          {/* TAB 2: 全團即時動態名單 (已修復防呆)        */}
+          {/* ========================================== */}
+          {activeTab === "crew" && (
+            <main className="p-3 space-y-3">
+              <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-3">
+                <h2
+                  onClick={() => {
+                    const next = adminTapCount + 1;
+                    if (next >= 5) {
+                      setShowAdminModal(true);
+                      setAdminTapCount(0);
+                    } else {
+                      setAdminTapCount(next);
+                    }
+                  }}
+                  className="text-sm font-black text-cyan-300 select-none cursor-pointer"
+                >
+                  👥 {lang === "zh" ? `全團即時動態 (${totalHeadcount}人)` : `Live Crew Feed (${totalHeadcount} ppl)`}
+                </h2>
+                <div className="flex items-center gap-1.5">
+                  {checkins && checkins[myProfile.id] && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveMyCheckin}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold"
+                    >
+                      👋 {lang === "zh" ? "移除我的定位" : "Clear Mine"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={copyLineReport}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold"
+                  >
+                    📋 {lang === "zh" ? "複製名單" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              {checkinList.length === 0 ? (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center space-y-2">
+                  <div className="text-3xl">📡</div>
+                  <p className="text-sm font-bold text-slate-300">
+                    {lang === "zh" ? "目前還沒有人打卡定位" : "No check-ins yet"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {lang === "zh" ? "切回「定位地圖」按下第一個打卡，全團手機都會即時同步看到！" : "Go to Map tab and check in first!"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {checkinList.map((u, idx) => {
+                    const lm = LANDMARKS.find((l) => l.id === u.landmarkId) || LANDMARKS[0];
+                    const safeLat = u.lat || lm.lat;
+                    const safeLng = u.lng || lm.lng;
+                    return (
+                      <div
+                        key={u.userId || `${u.name}_${idx}`}
+                        className={`p-3 rounded-2xl border flex items-center justify-between gap-2 ${
+                          u.userId === myProfile.id
+                            ? "bg-cyan-950/30 border-cyan-500/40"
+                            : "bg-slate-900/90 border-slate-800"
+                        }`}
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-black text-sm text-white">
+                              {u.name}
+                              {Number(u.plusOnes) > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 text-[10px] font-black">
+                                  +{u.plusOnes}
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[11px] font-mono text-cyan-300 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                              {formatExactTime(u.timestamp)} ({formatTimeAgo(u.timestamp, lang)})
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-300 flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className="px-1.5 py-0.5 rounded font-black text-[10px] text-slate-950"
+                              style={{ backgroundColor: lm.color }}
+                            >
+                              {lang === "zh" ? lm.codeZh : lm.codeEn}
+                            </span>
+                            <span className="font-bold">{lang === "zh" ? lm.nameZh : lm.nameEn}</span>
+                          </div>
+
+                          {(u.dj || u.note) && (
+                            <p className="text-xs text-slate-400">
+                              {u.dj && <span className="text-amber-300 font-bold mr-2">🎧 {u.dj}</span>}
+                              {u.note && <span>💬 {u.note}</span>}
+                            </p>
+                          )}
+                        </div>
+
+                        <a
+                          href={`https://www.google.com/maps?q=${safeLat},${safeLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-bold shrink-0"
+                        >
+                          導航 ↗
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 團長隱藏密碼清空彈窗 */}
+              {showAdminModal && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                  <form onSubmit={handleAdminClearAll} className="bg-slate-900 border border-rose-500/40 rounded-2xl p-5 w-full max-w-xs space-y-3">
+                    <h3 className="text-sm font-black text-rose-400">🔐 團長管理員重置</h3>
+                    <p className="text-xs text-slate-400">輸入管理員密碼以清空雲端所有定位紀錄：</p>
+                    <input
+                      type="password"
+                      value={adminPinInput}
+                      onChange={(e) => setAdminPinInput(e.target.value)}
+                      placeholder="輸入密碼 (2026)"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminModal(false)}
+                        className="flex-1 py-2 rounded-xl bg-slate-800 text-xs font-bold"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-2 rounded-xl bg-rose-600 text-white text-xs font-black"
+                      >
+                        確認清空
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </main>
+          )}
+
+          {/* ========================================== */}
+          {/* TAB 3: 官方完整時刻表 & 散場交通指南        */}
+          {/* ========================================== */}
+          {activeTab === "guide" && (
+            <main className="p-3 space-y-3">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-black text-cyan-300">
+                    ⏰ {lang === "zh" ? "11/14 (六) 官方完整時刻表" : "NOV 14 Official Set Times"}
+                  </h2>
+                  <span className="text-[11px] font-bold text-slate-400">12:00 - 22:00</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-slate-950 border border-cyan-500/30 rounded-xl p-2.5 space-y-1.5">
+                    <div className="text-xs font-black text-cyan-400 border-b border-slate-800 pb-1">
+                      A點 MAIN STAGE
+                    </div>
+                    {[...ULTRA_TIMETABLE.A].reverse().map((s) => (
+                      <div key={s.dj} className="text-[11px] py-0.5 border-b border-slate-900 last:border-0">
+                        <div className="font-black text-white leading-tight">{s.dj}</div>
+                        <div className="text-[10px] font-mono text-cyan-300/80">{s.start} - {s.end}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-2.5 space-y-1.5">
+                    <div className="text-xs font-black text-amber-400 border-b border-slate-800 pb-1">
+                      B點 RESISTANCE
+                    </div>
+                    {[...ULTRA_TIMETABLE.B].reverse().map((s) => (
+                      <div key={s.dj} className="text-[11px] py-0.5 border-b border-slate-900 last:border-0">
+                        <div className="font-black text-white leading-tight">{s.dj}</div>
+                        <div className="text-[10px] font-mono text-amber-300/80">{s.start} - {s.end}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs text-slate-300">
+                <h3 className="font-black text-amber-300 text-sm">🚪 大佳河濱公園・散場與基地台塞車對策</h3>
+                <ul className="space-y-1.5 list-disc pl-4 text-slate-300">
+                  <li>
+                    <strong className="text-white">21:30～22:15 散場尖峰：</strong>大佳河濱公園 8 號 / 9 號水門基地台會嚴重塞車，建議在 <strong className="text-cyan-300">21:15 前</strong>就先約好保底集合點（預設：<strong className="text-rose-400">F點 主入口 Lockers 旁</strong>）。
+                  </li>
+                  <li>
+                    <strong className="text-white">呼叫計程車 / Uber：</strong>水門內無法直接臨停叫車，建議步行出 <strong className="text-cyan-300">林安泰古厝（濱江街）</strong> 或 <strong className="text-cyan-300">大直橋下</strong> 再叫車會快非常多。
+                  </li>
+                  <li>
+                    <strong className="text-white">手環儲值退費：</strong>離場前記得確認手環餘額與官方退費時限。
+                  </li>
+                </ul>
+              </div>
+            </main>
+          )}
+
+          {/* Toast 浮動通知 (pointer-events-none 避免遮擋底部導覽列點擊) */}
+          {toastMsg && (
+            <div className="pointer-events-none fixed bottom-20 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-slate-900 border border-cyan-400 text-xs font-bold text-white shadow-2xl whitespace-nowrap">
+              {toastMsg}
+            </div>
+          )}
+
+          {/* 底部三大分頁導覽列 (提高層級至 z-50 確保隨時可切換) */}
+          <nav className="fixed bottom-0 left-0 right-0 z-50 max-w-lg mx-auto bg-[#07090e]/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-3 py-2 px-2">
+            {[
+              { id: "map", icon: "📍", zh: "定位地圖", en: "Live Map" },
+              { id: "crew", icon: "👥", zh: `找隊友 (${totalHeadcount})`, en: `Crew (${totalHeadcount})` },
+              { id: "guide", icon: "⏰", zh: "時刻＆攻略", en: "Set Times" }
+            ].map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  type="button"
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex flex-col items-center justify-center py-1 rounded-xl transition cursor-pointer ${
+                    active ? "text-cyan-300 bg-cyan-500/10 font-black" : "text-slate-400 font-bold"
+                  }`}
+                >
+                  <span className="text-base leading-none">{tab.icon}</span>
+                  <span className="text-[11px] mt-1">{lang === "zh" ? tab.zh : tab.en}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
